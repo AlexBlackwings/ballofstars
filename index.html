@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Interactive Glass Sphere</title>
+    <title>Crystal Sphere</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #000;
+            background: #000;
             font-family: sans-serif;
         }
         canvas {
@@ -17,11 +17,9 @@
         }
         #loading {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: rgba(255, 255, 255, 0.7);
-            pointer-events: none;
+            color: rgba(255,255,255,0.6);
         }
     </style>
     <script type="importmap">
@@ -38,7 +36,6 @@
 
     <script type="module">
         import * as THREE from 'three';
-        import { Tween } from 'three/examples/jsm/libs/tween.module.min.js';
 
         // --- Сцена ---
         const scene = new THREE.Scene();
@@ -50,193 +47,315 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        // --- Освещение ---
-        const ambient = new THREE.AmbientLight(0x303030, 0.6);
-        scene.add(ambient);
+        // === 1. ФОН: звёздное небо (для искажения через шар) ===
+        const bgGeometry = new THREE.PlaneGeometry(20, 20);
+        const bgMaterial = new THREE.MeshBasicMaterial({
+            color: 0x050510,
+            side: THREE.BackSide
+        });
+        const bg = new THREE.Mesh(bgGeometry, bgMaterial);
+        bg.position.z = -15;
+        scene.add(bg);
 
-        const light = new THREE.PointLight(0xffffff, 150);
-        light.position.set(3, 3, 3);
-        scene.add(light);
+        // Добавим 200 фоновых звёзд (точки)
+        const starField = new THREE.BufferGeometry();
+        const starCount = 200;
+        const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
 
-        // --- Звёзды ---
-        const starsGroup = new THREE.Group();
+        for (let i = 0; i < starCount; i++) {
+            const i3 = i * 3;
+            // Распределение по сфере радиуса 10–15
+            const r = 10 + Math.random() * 5;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
+            positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[i3 + 2] = r * Math.cos(phi);
 
-        function createStarTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-
-            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            grad.addColorStop(0, 'rgba(255, 255, 200, 1)');
-            grad.addColorStop(0.5, 'rgba(255, 200, 100, 0.7)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 64, 64);
-            return new THREE.CanvasTexture(canvas);
+            const brightness = 0.5 + Math.random() * 0.5;
+            colors[i3]     = brightness * 0.6;
+            colors[i3 + 1] = brightness * 0.7;
+            colors[i3 + 2] = brightness * 1.0;
         }
 
-        const starTex = createStarTexture();
-        const starMat = new THREE.SpriteMaterial({
-            map: starTex,
-            color: 0xffffcc,
-            transparent: true,
-            alphaTest: 0.1,
-            depthWrite: false,
-            depthTest: true,
-            blending: THREE.NormalBlending
-        });
+        starField.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        starField.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        for (let i = 0; i < 5; i++) {
-            const r = 0.8 * Math.cbrt(Math.random()); // теперь внутри радиуса 0.8 (т.к. шар маленький)
-            const theta = Math.random() * 2 * Math.PI;
+        const starMat = new THREE.PointsMaterial({
+            size: 0.05,
+            sizeAttenuation: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8
+        });
+        const stars = new THREE.Points(starField, starMat);
+        scene.add(stars);
+
+        // === 2. ПЫЛИНКИ (в "воздухе") ===
+        const dustGroup = new THREE.Group();
+        const dustCount = 30;
+        for (let i = 0; i < dustCount; i++) {
+            const r = 1.5 + Math.random() * 4; // от 1.5 до 5.5
+            const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
             const x = r * Math.sin(phi) * Math.cos(theta);
             const y = r * Math.sin(phi) * Math.sin(theta);
             const z = r * Math.cos(phi);
 
-            const star = new THREE.Sprite(starMat);
-            star.position.set(x, y, z);
-            star.scale.set(0.3 + Math.random() * 0.15, 0.3 + Math.random() * 0.15, 1);
-            star.renderOrder = 0;
-            starsGroup.add(star);
+            const dust = new THREE.Sprite(new THREE.SpriteMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.4 + Math.random() * 0.3,
+                sizeAttenuation: false
+            }));
+            dust.position.set(x, y, z);
+            dust.scale.set(0.02 + Math.random() * 0.03, 0.02 + Math.random() * 0.03, 1);
+            dust.userData = {
+                speed: 0.001 + Math.random() * 0.002,
+                angle: Math.random() * Math.PI * 2
+            };
+            dustGroup.add(dust);
+        }
+        scene.add(dustGroup);
+
+        // === 3. ЗВЁЗДОЧКИ ВНУТРИ ШАРА ===
+        const innerStars = new THREE.Group();
+
+        function createStarTex() {
+            const c = document.createElement('canvas');
+            c.width = c.height = 64;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(32,32,0,32,32,32);
+            g.addColorStop(0, 'rgba(255,255,200,1)');
+            g.addColorStop(0.4, 'rgba(255,200,100,0.8)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0,0,64,64);
+            return new THREE.CanvasTexture(c);
         }
 
-        // --- Шар: базовый радиус = 1.0 (в 3 раза меньше исходного 3.0)
-        const baseRadius = 1.0;
-        const sphereGeom = new THREE.SphereGeometry(baseRadius, 64, 64);
-        const sphereMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            metalness: 0.15,
-            roughness: 0.1,
-            opacity: 0.55,
+        const starTex = createStarTex();
+        const innerStarMat = new THREE.SpriteMaterial({
+            map: starTex,
+            color: 0xffffcc,
+            transparent: true,
+            alphaTest: 0.1,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        for (let i = 0; i < 5; i++) {
+            const r = 0.6 * Math.cbrt(Math.random());
+            const t = Math.random() * Math.PI * 2;
+            const p = Math.acos(2 * Math.random() - 1);
+            const x = r * Math.sin(p) * Math.cos(t);
+            const y = r * Math.sin(p) * Math.sin(t);
+            const z = r * Math.cos(p);
+
+            const s = new THREE.Sprite(innerStarMat);
+            s.position.set(x, y, z);
+            s.scale.set(0.25 + Math.random() * 0.1, 0.25 + Math.random() * 0.1, 1);
+            innerStars.add(s);
+        }
+
+        // === 4. КРИСТАЛЬНЫЙ ШАР — через ShaderMaterial ===
+        const radius = 1.0; // базовый радиус (в 3× меньше исходного)
+        const sphereGeom = new THREE.SphereGeometry(radius, 64, 64);
+
+        // Шейдер для преломления и бликов
+        const crystalShader = {
+            uniforms: {
+                uTime: { value: 0 },
+                uZoom: { value: 1.0 }, // 1.0 = удалён, 2.0 = приближён
+                uInnerStars: { value: [] }, // позиции звёзд для бликов
+                uResolution: { value: new THREE.Vector2() }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vPosition = (instanceMatrix * vec4(position, 1.0)).xyz;
+                    vec3 transformed = (vec4(position, 1.0) * worldMatrix).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform float uZoom;
+                uniform vec3 uInnerStars[5];
+                uniform vec2 uResolution;
+
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+
+                // Простая функция для имитации преломления
+                vec3 refractRay(vec3 rayDir, vec3 normal, float eta) {
+                    float cosI = dot(-rayDir, normal);
+                    float k = 1.0 - eta * eta * (1.0 - cosI * cosI);
+                    return eta * rayDir + (eta * cosI - sqrt(max(0.0, k))) * normal;
+                }
+
+                void main() {
+                    vec2 uv = gl_FragCoord.xy / uResolution;
+                    vec3 viewDir = normalize(cameraPosition - vPosition);
+                    vec3 normal = normalize(vNormal);
+
+                    // Блик от внутренних звёзд
+                    vec3 highlight = vec3(0.0);
+                    for (int i = 0; i < 5; i++) {
+                        vec3 starDir = normalize(uInnerStars[i] - vPosition);
+                        float dotNV = max(0.0, dot(normal, starDir));
+                        highlight += pow(dotNV, 32.0) * vec3(1.0, 0.9, 0.7) * 0.8;
+                    }
+
+                    // Преломлённый фон (упрощённо: искажение uv)
+                    vec2 distortedUv = uv + 0.02 * normal.xy * (1.0 - abs(normal.z)) * sin(uTime * 0.5);
+                    distortedUv = clamp(distortedUv, 0.0, 1.0);
+
+                    // Цвет фона (имитируем звёздное небо)
+                    vec3 bgColor = vec3(0.05, 0.05, 0.15);
+                    vec3 starPattern = vec3(
+                        sin(distortedUv.x * 20.0 + uTime) * 0.1,
+                        cos(distortedUv.y * 30.0 - uTime) * 0.08,
+                        sin(distortedUv.x * 15.0 + distortedUv.y * 12.0) * 0.05
+                    );
+                    bgColor += starPattern * 0.3;
+
+                    // Основной цвет шара: прозрачный, с бликами
+                    vec3 baseColor = vec3(0.9, 0.95, 1.0) * 0.1;
+                    vec3 finalColor = mix(bgColor, baseColor, 0.3) + highlight * 0.6;
+
+                    // Прозрачность: зависит от угла взгляда (Fresnel)
+                    float fresnel = pow(1.0 - abs(dot(viewDir, normal)), 3.0);
+                    float opacity = 0.4 + fresnel * 0.5;
+
+                    gl_FragColor = vec4(finalColor, opacity);
+                }
+            `
+        };
+
+        // Заполняем uniforms звёздами
+        const starPositions = [];
+        innerStars.children.forEach(s => starPositions.push(s.position.clone()));
+        crystalShader.uniforms.uInnerStars.value = starPositions;
+
+        const crystalMat = new THREE.ShaderMaterial({
+            uniforms: crystalShader.uniforms,
+            vertexShader: crystalShader.vertexShader,
+            fragmentShader: crystalShader.fragmentShader,
             transparent: true,
             depthWrite: false,
             depthTest: true,
-            side: THREE.DoubleSide,
-            renderOrder: 1
+            side: THREE.DoubleSide
         });
 
-        const sphere = new THREE.Mesh(sphereGeom, sphereMat);
-        sphere.add(starsGroup);
+        const sphere = new THREE.Mesh(sphereGeom, crystalMat);
+        sphere.add(innerStars);
         scene.add(sphere);
 
-        // --- Управление масштабом и вращением ---
+        // === Управление масштабом ===
         let isZoomed = false;
         let isDragging = false;
-        let prevTouch = { x: 0, y: 0 };
         let dragStart = { x: 0, y: 0 };
-        let rotationVel = { x: 0.002, y: 0.003 };
+        let prev = { x: 0, y: 0 };
+        let rotVel = { x: 0.002, y: 0.003 };
         const damping = 0.96;
         const sens = 0.005;
 
-        // Текущий scale-фактор: 1.0 (удалён) или 2.0 (приближён)
-        let currentScale = 1.0;
-
-        // Функция для изменения масштаба с анимацией
-        function setZoom(newZoom) {
-            if (isZoomed === newZoom) return;
-            isZoomed = newZoom;
-            const targetScale = newZoom ? 2.0 : 1.0;
-
-            const tween = new Tween({ scale: currentScale })
-                .to({ scale: targetScale }, 300)
-                .onUpdate((obj) => {
-                    currentScale = obj.scale;
-                    sphere.scale.set(obj.scale, obj.scale, obj.scale);
-                })
-                .start();
-
-            // Обновляем звезды (они уже внутри шара, поэтому масштабируется автоматически)
+        function toggleZoom() {
+            isZoomed = !isZoomed;
+            const targetScale = isZoomed ? 2.0 : 1.0;
+            sphere.scale.set(targetScale, targetScale, targetScale);
+            crystalMat.uniforms.uZoom.value = targetScale;
         }
 
-        // Обработка короткого касания (tap)
-        function handleTap(clientX, clientY) {
-            const dx = Math.abs(clientX - dragStart.x);
-            const dy = Math.abs(clientY - dragStart.y);
-            if (dx < 5 && dy < 5) {
-                setZoom(!isZoomed);
-            }
-        }
-
-        // События
         const onStart = (e) => {
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
-
             dragStart = { x: cx, y: cy };
-            prevTouch = { x: cx, y: cy };
+            prev = { x: cx, y: cy };
             isDragging = true;
         };
 
         const onMove = (e) => {
             if (!isDragging) return;
-
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
 
-            const dx = cx - prevTouch.x;
-            const dy = cy - prevTouch.y;
+            const dx = cx - prev.x;
+            const dy = cy - prev.y;
 
-            // Вращаем только если уже в zoomed-режиме (или если не zoomed — всё равно можно вращать, но шар маленький)
             const q = new THREE.Quaternion().setFromEuler(
                 new THREE.Euler(dy * sens, dx * sens, 0, 'XYZ')
             );
 
             sphere.quaternion.multiplyQuaternions(q, sphere.quaternion);
-            starsGroup.quaternion.multiplyQuaternions(q, starsGroup.quaternion);
+            innerStars.quaternion.multiplyQuaternions(q, innerStars.quaternion);
 
-            rotationVel.x = dy * sens;
-            rotationVel.y = dx * sens;
-            prevTouch = { x: cx, y: cy };
+            rotVel.x = dy * sens;
+            rotVel.y = dx * sens;
+            prev = { x: cx, y: cy };
         };
 
         const onEnd = (e) => {
             isDragging = false;
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
-            handleTap(cx, cy);
+            const dx = Math.abs(cx - dragStart.x);
+            const dy = Math.abs(cy - dragStart.y);
+            if (dx < 5 && dy < 5) toggleZoom();
         };
 
         document.addEventListener('mousedown', onStart);
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onEnd);
-
         document.addEventListener('touchstart', onStart, { passive: false });
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('touchend', onEnd);
 
-        // --- Анимация ---
-        function animate() {
+        // === Анимация ===
+        function animate(time) {
             requestAnimationFrame(animate);
 
+            crystalMat.uniforms.uTime.value = time * 0.001;
+            crystalMat.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+
             if (!isDragging) {
-                sphere.rotation.y += rotationVel.y;
-                sphere.rotation.x += rotationVel.x;
-                starsGroup.rotation.y += rotationVel.y;
-                starsGroup.rotation.x += rotationVel.x;
+                sphere.rotation.y += rotVel.y;
+                sphere.rotation.x += rotVel.x;
+                innerStars.rotation.y += rotVel.y;
+                innerStars.rotation.x += rotVel.x;
 
-                rotationVel.x *= damping;
-                rotationVel.y *= damping;
+                rotVel.x *= damping;
+                rotVel.y *= damping;
 
-                if (Math.abs(rotationVel.x) < 0.0001 && Math.abs(rotationVel.y) < 0.0001) {
-                    sphere.rotation.y += 0.0008;
-                    starsGroup.rotation.y += 0.0008;
+                if (Math.abs(rotVel.x) < 0.0001 && Math.abs(rotVel.y) < 0.0001) {
+                    sphere.rotation.y += 0.0006;
+                    innerStars.rotation.y += 0.0006;
                 }
             }
 
-            // Пульсация звезд
-            const t = Date.now() * 0.001;
-            starsGroup.children.forEach((s, i) => {
-                s.material.opacity = 0.6 + Math.sin(t * 3 + i) * 0.3;
+            // Пылинки
+            dustGroup.children.forEach(dust => {
+                dust.userData.angle += dust.userData.speed;
+                dust.position.x = Math.cos(dust.userData.angle) * 3;
+                dust.position.z = Math.sin(dust.userData.angle) * 3;
+                dust.position.y += 0.001;
+                if (dust.position.y > 2) dust.position.y = -2;
+            });
+
+            // Пульсация звёзд внутри
+            innerStars.children.forEach((s, i) => {
+                s.material.opacity = 0.6 + Math.sin(time * 0.002 + i) * 0.3;
             });
 
             renderer.render(scene, camera);
         }
 
         document.getElementById('loading').style.display = 'none';
-        animate();
+        animate(0);
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
