@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Interactive Glass Sphere</title>
+    <title>3D Glass Sphere</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #000;
+            background-color: #000000; /* Черный фон для контраста */
             font-family: sans-serif;
         }
         canvas {
@@ -22,6 +22,7 @@
             transform: translate(-50%, -50%);
             color: rgba(255, 255, 255, 0.7);
             pointer-events: none;
+            transition: opacity 0.5s;
         }
     </style>
     <script type="importmap">
@@ -34,14 +35,15 @@
     </script>
 </head>
 <body>
-    <div id="loading">Загрузка...</div>
+
+    <div id="loading">Загрузка сцены...</div>
 
     <script type="module">
         import * as THREE from 'three';
-        import { Tween } from 'three/examples/jsm/libs/tween.module.min.js';
 
-        // --- Сцена ---
+        // --- Настройка сцены ---
         const scene = new THREE.Scene();
+
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
         camera.position.z = 12;
 
@@ -51,191 +53,169 @@
         document.body.appendChild(renderer.domElement);
 
         // --- Освещение ---
-        const ambient = new THREE.AmbientLight(0x303030, 0.6);
-        scene.add(ambient);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+        scene.add(ambientLight);
 
-        const light = new THREE.PointLight(0xffffff, 150);
-        light.position.set(3, 3, 3);
-        scene.add(light);
+        const pointLight1 = new THREE.PointLight(0xffffff, 200);
+        pointLight1.position.set(5, 5, 5);
+        scene.add(pointLight1);
 
-        // --- Звёзды ---
+        const pointLight2 = new THREE.PointLight(0xffffff, 150);
+        pointLight2.position.set(-5, -5, 5);
+        scene.add(pointLight2);
+
+        // --- Создание полупрозрачного стеклянного шара ---
+        const sphereGeometry = new THREE.SphereGeometry(3, 64, 64);
+        const sphereMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0.2,
+            roughness: 0.05,
+            opacity: 0.6,         // Полупрозрачность
+            transparent: true,    // Включаем прозрачность
+            emissive: 0x444444,   // Легкое собственное свечение для "внутренней атмосферы"
+            side: THREE.DoubleSide
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        scene.add(sphere);
+
+        // --- Создание звёздочек внутри ---
         const starsGroup = new THREE.Group();
-
+        
+        // Программно создаем текстуру звезды
         function createStarTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
             const ctx = canvas.getContext('2d');
-
-            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            grad.addColorStop(0, 'rgba(255, 255, 200, 1)');
-            grad.addColorStop(0.5, 'rgba(255, 200, 100, 0.7)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-            ctx.fillStyle = grad;
+            
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 200, 100, 0.8)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
-            return new THREE.CanvasTexture(canvas);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
         }
 
-        const starTex = createStarTexture();
-        const starMat = new THREE.SpriteMaterial({
-            map: starTex,
-            color: 0xffffcc,
-            transparent: true,
-            alphaTest: 0.1,
-            depthWrite: false,
-            depthTest: true,
-            blending: THREE.NormalBlending
+        const starTexture = createStarTexture();
+        const starMaterial = new THREE.SpriteMaterial({ 
+            map: starTexture, 
+            color: 0xffffcc, 
+            transparent: true, 
+            blending: THREE.AdditiveBlending // Сложение цветов для яркости
         });
 
+        // Размещаем 5 звезд в случайных позициях внутри сферы
         for (let i = 0; i < 5; i++) {
-            const r = 0.8 * Math.cbrt(Math.random()); // теперь внутри радиуса 0.8 (т.к. шар маленький)
+            const star = new THREE.Sprite(starMaterial);
+            
+            const r = 2.5 * Math.cbrt(Math.random());
             const theta = Math.random() * 2 * Math.PI;
             const phi = Math.acos(2 * Math.random() - 1);
+            
             const x = r * Math.sin(phi) * Math.cos(theta);
             const y = r * Math.sin(phi) * Math.sin(theta);
             const z = r * Math.cos(phi);
-
-            const star = new THREE.Sprite(starMat);
+            
             star.position.set(x, y, z);
-            star.scale.set(0.3 + Math.random() * 0.15, 0.3 + Math.random() * 0.15, 1);
-            star.renderOrder = 0;
+            
+            const scale = 0.4 + Math.random() * 0.3;
+            star.scale.set(scale, scale, 1);
+            
             starsGroup.add(star);
         }
+        
+        sphere.add(starsGroup); // Закрепляем звезды внутри сферы
 
-        // --- Шар: базовый радиус = 1.0 (в 3 раза меньше исходного 3.0)
-        const baseRadius = 1.0;
-        const sphereGeom = new THREE.SphereGeometry(baseRadius, 64, 64);
-        const sphereMat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            metalness: 0.15,
-            roughness: 0.1,
-            opacity: 0.55,
-            transparent: true,
-            depthWrite: false,
-            depthTest: true,
-            side: THREE.DoubleSide,
-            renderOrder: 1
-        });
-
-        const sphere = new THREE.Mesh(sphereGeom, sphereMat);
-        sphere.add(starsGroup);
-        scene.add(sphere);
-
-        // --- Управление масштабом и вращением ---
-        let isZoomed = false;
+        // --- Логика вращения ---
         let isDragging = false;
-        let prevTouch = { x: 0, y: 0 };
-        let dragStart = { x: 0, y: 0 };
-        let rotationVel = { x: 0.002, y: 0.003 };
+        let previousMousePosition = { x: 0, y: 0 };
+        let rotationVelocity = { x: 0.002, y: 0.003 };
         const damping = 0.96;
-        const sens = 0.005;
+        const sensitivity = 0.005;
 
-        // Текущий scale-фактор: 1.0 (удалён) или 2.0 (приближён)
-        let currentScale = 1.0;
-
-        // Функция для изменения масштаба с анимацией
-        function setZoom(newZoom) {
-            if (isZoomed === newZoom) return;
-            isZoomed = newZoom;
-            const targetScale = newZoom ? 2.0 : 1.0;
-
-            const tween = new Tween({ scale: currentScale })
-                .to({ scale: targetScale }, 300)
-                .onUpdate((obj) => {
-                    currentScale = obj.scale;
-                    sphere.scale.set(obj.scale, obj.scale, obj.scale);
-                })
-                .start();
-
-            // Обновляем звезды (они уже внутри шара, поэтому масштабируется автоматически)
-        }
-
-        // Обработка короткого касания (tap)
-        function handleTap(clientX, clientY) {
-            const dx = Math.abs(clientX - dragStart.x);
-            const dy = Math.abs(clientY - dragStart.y);
-            if (dx < 5 && dy < 5) {
-                setZoom(!isZoomed);
-            }
-        }
-
-        // События
         const onStart = (e) => {
-            const cx = e.touches ? e.touches[0].clientX : e.clientX;
-            const cy = e.touches ? e.touches[0].clientY : e.clientY;
-
-            dragStart = { x: cx, y: cy };
-            prevTouch = { x: cx, y: cy };
             isDragging = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            previousMousePosition = { x: clientX, y: clientY };
+            rotationVelocity = { x: 0, y: 0 };
         };
 
         const onMove = (e) => {
             if (!isDragging) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const deltaMove = {
+                x: clientX - previousMousePosition.x,
+                y: clientY - previousMousePosition.y
+            };
 
-            const cx = e.touches ? e.touches[0].clientX : e.clientX;
-            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            const deltaRotationQuaternion = new THREE.Quaternion()
+                .setFromEuler(new THREE.Euler(
+                    deltaMove.y * sensitivity,
+                    deltaMove.x * sensitivity,
+                    0,
+                    'XYZ'
+                ));
+            
+            sphere.quaternion.multiplyQuaternions(deltaRotationQuaternion, sphere.quaternion);
+            starsGroup.quaternion.multiplyQuaternions(deltaRotationQuaternion, starsGroup.quaternion);
 
-            const dx = cx - prevTouch.x;
-            const dy = cy - prevTouch.y;
+            rotationVelocity.x = deltaMove.y * sensitivity;
+            rotationVelocity.y = deltaMove.x * sensitivity;
 
-            // Вращаем только если уже в zoomed-режиме (или если не zoomed — всё равно можно вращать, но шар маленький)
-            const q = new THREE.Quaternion().setFromEuler(
-                new THREE.Euler(dy * sens, dx * sens, 0, 'XYZ')
-            );
-
-            sphere.quaternion.multiplyQuaternions(q, sphere.quaternion);
-            starsGroup.quaternion.multiplyQuaternions(q, starsGroup.quaternion);
-
-            rotationVel.x = dy * sens;
-            rotationVel.y = dx * sens;
-            prevTouch = { x: cx, y: cy };
+            previousMousePosition = { x: clientX, y: clientY };
         };
 
-        const onEnd = (e) => {
+        const onEnd = () => {
             isDragging = false;
-            const cx = e.touches ? e.touches[0].clientX : e.clientX;
-            const cy = e.touches ? e.touches[0].clientY : e.clientY;
-            handleTap(cx, cy);
         };
 
         document.addEventListener('mousedown', onStart);
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onEnd);
-
+        
         document.addEventListener('touchstart', onStart, { passive: false });
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('touchend', onEnd);
 
-        // --- Анимация ---
+        document.getElementById('loading').style.opacity = 0;
+
+        // --- Анимационный цикл ---
         function animate() {
             requestAnimationFrame(animate);
 
             if (!isDragging) {
-                sphere.rotation.y += rotationVel.y;
-                sphere.rotation.x += rotationVel.x;
-                starsGroup.rotation.y += rotationVel.y;
-                starsGroup.rotation.x += rotationVel.x;
+                sphere.rotation.y += rotationVelocity.y;
+                sphere.rotation.x += rotationVelocity.x;
+                
+                starsGroup.rotation.y += rotationVelocity.y;
+                starsGroup.rotation.x += rotationVelocity.x;
 
-                rotationVel.x *= damping;
-                rotationVel.y *= damping;
+                rotationVelocity.x *= damping;
+                rotationVelocity.y *= damping;
 
-                if (Math.abs(rotationVel.x) < 0.0001 && Math.abs(rotationVel.y) < 0.0001) {
-                    sphere.rotation.y += 0.0008;
-                    starsGroup.rotation.y += 0.0008;
+                if (Math.abs(rotationVelocity.x) < 0.0001 && Math.abs(rotationVelocity.y) < 0.0001) {
+                    sphere.rotation.y += 0.001;
+                    starsGroup.rotation.y += 0.001;
                 }
             }
 
             // Пульсация звезд
-            const t = Date.now() * 0.001;
-            starsGroup.children.forEach((s, i) => {
-                s.material.opacity = 0.6 + Math.sin(t * 3 + i) * 0.3;
+            const time = Date.now() * 0.002;
+            starsGroup.children.forEach((star, index) => {
+                star.material.opacity = 0.7 + Math.sin(time * 2 + index) * 0.3;
             });
 
             renderer.render(scene, camera);
         }
 
-        document.getElementById('loading').style.display = 'none';
         animate();
 
         window.addEventListener('resize', () => {
