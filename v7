@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Crystal Sphere (Corrected)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="loading">Загрузка...</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Сцена ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.z = 12;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // --- Освещение ---
+        const ambient = new THREE.AmbientLight(0x202020, 0.6);
+        scene.add(ambient);
+
+        const pointLight = new THREE.PointLight(0xffffff, 150);
+        pointLight.position.set(3, 3, 3);
+        scene.add(pointLight);
+
+        // --- Фон: звёздное небо (для искажения через шар) ---
+        const bgSphereGeom = new THREE.SphereGeometry(50, 64, 64);
+        const bgSphereMat = new THREE.MeshBasicMaterial({
+            color: 0x0a0a1a,
+            side: THREE.BackSide
+        });
+        const bgSphere = new THREE.Mesh(bgSphereGeom, bgSphereMat);
+        scene.add(bgSphere);
+
+        // Добавим немного звёзд на фон
+        const bgStarField = new THREE.BufferGeometry();
+        const starCount = 300;
+        const positions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            const i3 = i * 3;
+            const r = 48 + Math.random() * 1;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            positions[i3] = r * Math.sin(phi) * Math.cos(theta);
+            positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[i3 + 2] = r * Math.cos(phi);
+        }
+        bgStarField.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const bgStarMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, sizeAttenuation: false });
+        const bgStars = new THREE.Points(bgStarField, bgStarMat);
+        bgSphere.add(bgStars);
+
+        // --- Звёзды внутри шара ---
+        const innerStars = new THREE.Group();
+
+        function createStarTextureDetailed() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            // Ядро
+            const coreGrad = ctx.createRadialGradient(32, 32, 0, 32, 32, 6);
+            coreGrad.addColorStop(0, 'rgba(255,255,200,1)');
+            coreGrad.addColorStop(1, 'rgba(255,200,100,0.1)');
+            ctx.fillStyle = coreGrad;
+            ctx.fillRect(0, 0, 64, 64);
+
+            // Лучи
+            ctx.save();
+            ctx.translate(32, 32);
+            ctx.strokeStyle = 'rgba(255,200,100,0.5)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 6; i++) {
+                ctx.rotate(Math.PI / 3);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -20);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Внешнее свечение
+            const glowGrad = ctx.createRadialGradient(32, 32, 0, 32, 32, 16);
+            glowGrad.addColorStop(0, 'rgba(255,255,200,0.2)');
+            glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glowGrad;
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillRect(0, 0, 64, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const starTex = createStarTextureDetailed();
+        const starMat = new THREE.SpriteMaterial({
+            map: starTex,
+            transparent: true,
+            alphaTest: 0.05,
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.NormalBlending // 🔑 Без Additive
+        });
+
+        for (let i = 0; i < 5; i++) {
+            const r = 0.8 * Math.cbrt(Math.random());
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const x = r * Math.sin(phi) * Math.cos(theta);
+            const y = r * Math.sin(phi) * Math.sin(theta);
+            const z = r * Math.cos(phi);
+
+            const star = new THREE.Sprite(starMat);
+            star.position.set(x, y, z);
+            star.scale.set(0.3, 0.3, 1);
+            star.renderOrder = 0;
+            innerStars.add(star);
+        }
+
+        // --- Шар: кристалл ---
+        const baseRadius = 1.0;
+        const sphereGeom = new THREE.SphereGeometry(baseRadius, 64, 64);
+        const sphereMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0.1,
+            roughness: 0.05,
+            opacity: 0.5,              // 🔑 Прозрачность
+            transparent: true,
+            depthWrite: false,         // 🔑 Чтобы звёзды были видны
+            depthTest: true,
+            side: THREE.DoubleSide,
+            emissive: 0x4466aa,        // 🔹 Внутреннее свечение
+            emissiveIntensity: 0.15,
+            envMapIntensity: 1.0
+        });
+
+        const sphere = new THREE.Mesh(sphereGeom, sphereMat);
+        sphere.add(innerStars);
+        scene.add(sphere);
+
+        // --- Пылинки ---
+        const dustParticles = [];
+
+        function createDustTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 32, 32);
+
+            ctx.beginPath();
+            ctx.moveTo(8, 16);
+            ctx.bezierCurveTo(12, 12, 20, 20, 24, 16);
+            ctx.strokeStyle = 'rgba(200, 200, 255, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const dustTex = createDustTexture();
+        const dustMat = new THREE.SpriteMaterial({
+            map: dustTex,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            depthTest: false,
+            blending: THREE.NormalBlending // 🔑 Без Additive
+        });
+
+        for (let i = 0; i < 3; i++) {
+            const dust = new THREE.Sprite(dustMat);
+            dust.scale.set(0.05, 0.05, 1);
+            dust.visible = false;
+            scene.add(dust);
+
+            dust.userData = {
+                active: false,
+                speed: 0.002 + Math.random() * 0.002,
+                offset: Math.random() * Math.PI * 2,
+                side: 0,
+                startTime: 0
+            };
+            dustParticles.push(dust);
+        }
+
+        function launchDust() {
+            const inactive = dustParticles.find(d => !d.userData.active);
+            if (!inactive) return;
+
+            const side = Math.floor(Math.random() * 4);
+            const startPos = { x: 0, y: 0 };
+            const endPos = { x: 0, y: 0 };
+
+            switch (side) {
+                case 0:
+                    startPos.x = (Math.random() - 0.5) * 10;
+                    startPos.y = 6;
+                    endPos.x = startPos.x + (Math.random() - 0.5) * 2;
+                    endPos.y = -6;
+                    break;
+                case 1:
+                    startPos.x = 8;
+                    startPos.y = (Math.random() - 0.5) * 10;
+                    endPos.x = -8;
+                    endPos.y = startPos.y + (Math.random() - 0.5) * 2;
+                    break;
+                case 2:
+                    startPos.x = (Math.random() - 0.5) * 10;
+                    startPos.y = -6;
+                    endPos.x = startPos.x + (Math.random() - 0.5) * 2;
+                    endPos.y = 6;
+                    break;
+                case 3:
+                    startPos.x = -8;
+                    startPos.y = (Math.random() - 0.5) * 10;
+                    endPos.x = 8;
+                    endPos.y = startPos.y + (Math.random() - 0.5) * 2;
+                    break;
+            }
+
+            inactive.position.set(startPos.x, startPos.y, -5 + Math.random() * 10);
+            inactive.userData.startPos = new THREE.Vector3(startPos.x, startPos.y, inactive.position.z);
+            inactive.userData.endPos = new THREE.Vector3(endPos.x, endPos.y, inactive.position.z);
+            inactive.userData.active = true;
+            inactive.userData.startTime = performance.now();
+            inactive.visible = true;
+        }
+
+        setTimeout(launchDust, 1000);
+        setInterval(() => {
+            if (dustParticles.some(d => !d.userData.active)) {
+                launchDust();
+            }
+        }, 3000);
+
+        // --- Управление масштабом ---
+        let isZoomed = false;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let prev = { x: 0, y: 0 };
+        let rotVel = { x: 0.002, y: 0.003 };
+        const damping = 0.96;
+        const sens = 0.005;
+
+        function toggleZoom() {
+            isZoomed = !isZoomed;
+            const targetScale = isZoomed ? 2.0 : 1.0;
+            sphere.scale.set(targetScale, targetScale, targetScale);
+        }
+
+        const onStart = (e) => {
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            dragStart = { x: cx, y: cy };
+            prev = { x: cx, y: cy };
+            isDragging = true;
+        };
+
+        const onMove = (e) => {
+            if (!isDragging) return;
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const dx = cx - prev.x;
+            const dy = cy - prev.y;
+
+            const q = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(dy * sens, dx * sens, 0, 'XYZ')
+            );
+
+            sphere.quaternion.multiplyQuaternions(q, sphere.quaternion);
+            innerStars.quaternion.multiplyQuaternions(q, innerStars.quaternion);
+
+            rotVel.x = dy * sens;
+            rotVel.y = dx * sens;
+            prev = { x: cx, y: cy };
+        };
+
+        const onEnd = (e) => {
+            isDragging = false;
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            const dx = Math.abs(cx - dragStart.x);
+            const dy = Math.abs(cy - dragStart.y);
+            if (dx < 5 && dy < 5) toggleZoom();
+        };
+
+        document.addEventListener('mousedown', onStart);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchstart', onStart, { passive: false });
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+
+        // --- Анимация ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isDragging) {
+                sphere.rotation.y += rotVel.y;
+                sphere.rotation.x += rotVel.x;
+                innerStars.rotation.y += rotVel.y;
+                innerStars.rotation.x += rotVel.x;
+
+                rotVel.x *= damping;
+                rotVel.y *= damping;
+
+                if (Math.abs(rotVel.x) < 0.0001 && Math.abs(rotVel.y) < 0.0001) {
+                    sphere.rotation.y += 0.0008;
+                    innerStars.rotation.y += 0.0008;
+                }
+            }
+
+            const now = performance.now();
+            dustParticles.forEach(dust => {
+                if (dust.userData.active) {
+                    const elapsed = (now - dust.userData.startTime) / 1000;
+                    const t = Math.min(elapsed / 5, 1);
+
+                    const waveOffset = Math.sin(t * Math.PI * 4 + dust.userData.offset) * 0.5;
+                    dust.position.lerpVectors(dust.userData.startPos, dust.userData.endPos, t);
+                    dust.position.x += waveOffset;
+
+                    const dx = dust.userData.endPos.x - dust.userData.startPos.x;
+                    const dy = dust.userData.endPos.y - dust.userData.startPos.y;
+                    dust.rotation.z = Math.atan2(dy, dx);
+
+                    if (t >= 1) {
+                        dust.userData.active = false;
+                        dust.visible = false;
+                    }
+                }
+            });
+
+            // Пульсация звёзд
+            innerStars.children.forEach((s, i) => {
+                s.material.opacity = 0.8 + Math.sin(Date.now() * 0.002 + i) * 0.15;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
+
