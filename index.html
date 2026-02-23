@@ -44,7 +44,7 @@
         scene.fog = new THREE.FogExp2(0x0d0d12, 0.02);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0.5, 7);
+        camera.position.set(0, 4, 6);
         camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -80,11 +80,11 @@
         });
 
         const mainLight = new THREE.PointLight(0xffffff, 80, 15);
-        mainLight.position.set(4, 5, 6);
+        mainLight.position.set(4, 6, 6);
         scene.add(mainLight);
 
         const fillLight = new THREE.PointLight(0x88aaff, 30, 12);
-        fillLight.position.set(-4, 3, 4);
+        fillLight.position.set(-4, 4, 4);
         scene.add(fillLight);
 
         // === ФОНОВЫЕ БОКЕ ===
@@ -115,11 +115,11 @@
         });
 
         const bokehPositions = [
-            { x: -5, y: 3.5, z: -8, scale: 0.8, color: 0xffaa66 },
-            { x: -4.5, y: 3.2, z: -8.5, scale: 0.6, color: 0xffcc88 },
-            { x: 5, y: 3, z: -9, scale: 0.9, color: 0xffdd99 },
-            { x: 4.5, y: 2.8, z: -8.5, scale: 0.7, color: 0xffbb77 },
-            { x: 0, y: 4.5, z: -10, scale: 0.75, color: 0xffeeaa }
+            { x: -5, y: 4, z: -8, scale: 0.8, color: 0xffaa66 },
+            { x: -4.5, y: 3.5, z: -8.5, scale: 0.6, color: 0xffcc88 },
+            { x: 5, y: 3.5, z: -9, scale: 0.9, color: 0xffdd99 },
+            { x: 4.5, y: 3.2, z: -8.5, scale: 0.7, color: 0xffbb77 },
+            { x: 0, y: 5, z: -10, scale: 0.75, color: 0xffeeaa }
         ];
 
         bokehPositions.forEach(pos => {
@@ -133,48 +133,154 @@
         });
         scene.add(bgBokehGroup);
 
+        // === ГРАВИРОВАННЫЙ УЗОР ДЛЯ ПОДСТАВКИ ===
+        function createEngravingTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#2a2a35';
+            ctx.fillRect(0, 0, 512, 256);
+
+            ctx.strokeStyle = '#4a4a5a';
+            ctx.lineWidth = 2;
+
+            const patternWidth = 64;
+            const patternHeight = 64;
+
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const x = col * patternWidth + patternWidth / 2;
+                    const y = row * patternHeight + patternHeight / 2;
+
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - 20);
+                    ctx.lineTo(x + 15, y);
+                    ctx.lineTo(x, y + 20);
+                    ctx.lineTo(x - 15, y);
+                    ctx.closePath();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(x - 25, y);
+                    ctx.lineTo(x - 18, y);
+                    ctx.moveTo(x + 18, y);
+                    ctx.lineTo(x + 25, y);
+                    ctx.moveTo(x, y - 25);
+                    ctx.lineTo(x, y - 18);
+                    ctx.moveTo(x, y + 18);
+                    ctx.lineTo(x, y + 25);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.strokeStyle = '#5a5a6a';
+            ctx.lineWidth = 3;
+            
+            ctx.beginPath();
+            for (let i = 0; i <= 512; i += 5) {
+                const y = 15 + Math.sin(i * 0.05) * 5;
+                if (i === 0) ctx.moveTo(i, y);
+                else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+
+            ctx.beginPath();
+            for (let i = 0; i <= 512; i += 5) {
+                const y = 241 + Math.sin(i * 0.05) * 5;
+                if (i === 0) ctx.moveTo(i, y);
+                else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const engravingTexture = createEngravingTexture();
+
         // === ПОДСТАВКА ===
         const baseGroup = new THREE.Group();
         const baseRadius = 1.0;
 
         const baseMat = new THREE.MeshStandardMaterial({
-            color: 0x3a3a4a,
-            metalness: 0.8,
-            roughness: 0.25,
-            emissive: 0x2a2a3a,
-            emissiveIntensity: 0.15
+            color: 0x2a2a35,
+            metalness: 0.7,
+            roughness: 0.3,
+            emissive: 0x1a1a25,
+            emissiveIntensity: 0.1,
+            map: engravingTexture,
+            bumpMap: engravingTexture,
+            bumpScale: 0.02
         });
 
         const bronzeMat = new THREE.MeshStandardMaterial({
             color: 0x8b6f47,
-            metalness: 0.9,
-            roughness: 0.2,
-            emissive: 0x4a3a2a,
-            emissiveIntensity: 0.2
+            metalness: 0.85,
+            roughness: 0.25,
+            emissive: 0x3a2a1a,
+            emissiveIntensity: 0.15,
+            map: engravingTexture,
+            bumpMap: engravingTexture,
+            bumpScale: 0.015
         });
 
-        const baseBottomGeom = new THREE.CylinderGeometry(1.4, 1.6, 0.35, 48);
-        const baseBottom = new THREE.Mesh(baseBottomGeom, baseMat);
-        baseBottom.position.y = -1.5;
-        baseGroup.add(baseBottom);
-
-        const baseMiddleGeom = new THREE.CylinderGeometry(1.0, 1.4, 0.45, 48);
-        const baseMiddle = new THREE.Mesh(baseMiddleGeom, bronzeMat);
-        baseMiddle.position.y = -1.2;
-        baseGroup.add(baseMiddle);
-
-        const baseTopGeom = new THREE.CylinderGeometry(0.7, 1.0, 0.3, 48);
+        const baseTopGeom = new THREE.CylinderGeometry(0.35, 0.5, 0.12, 64);
         const baseTop = new THREE.Mesh(baseTopGeom, bronzeMat);
-        baseTop.position.y = -0.9;
+        baseTop.position.y = -baseRadius - 0.06;
         baseGroup.add(baseTop);
 
-        for (let i = 0; i < 3; i++) {
-            const ringGeom = new THREE.TorusGeometry(0.85 - i * 0.15, 0.035, 16, 64);
-            const ring = new THREE.Mesh(ringGeom, bronzeMat);
+        const baseMiddleGeom = new THREE.CylinderGeometry(0.5, 0.7, 0.2, 64);
+        const baseMiddle = new THREE.Mesh(baseMiddleGeom, bronzeMat);
+        baseMiddle.position.y = -baseRadius - 0.06 - 0.16;
+        baseGroup.add(baseMiddle);
+
+        const baseBottomGeom = new THREE.CylinderGeometry(0.7, 0.85, 0.18, 64);
+        const baseBottom = new THREE.Mesh(baseBottomGeom, baseMat);
+        baseBottom.position.y = -baseRadius - 0.06 - 0.16 - 0.17;
+        baseGroup.add(baseBottom);
+
+        for (let i = 0; i < 2; i++) {
+            const ringGeom = new THREE.TorusGeometry(0.55 - i * 0.12, 0.015, 16, 64);
+            const ringMat = new THREE.MeshStandardMaterial({
+                color: 0x9b7f57,
+                metalness: 0.9,
+                roughness: 0.2,
+                emissive: 0x4a3a2a,
+                emissiveIntensity: 0.2
+            });
+            const ring = new THREE.Mesh(ringGeom, ringMat);
             ring.rotation.x = Math.PI / 2;
-            ring.position.y = -0.75 - i * 0.12;
+            ring.position.y = -baseRadius - 0.08 - i * 0.06;
             baseGroup.add(ring);
         }
+
+        const bandMat = new THREE.MeshStandardMaterial({
+            color: 0x6b5f47,
+            metalness: 0.8,
+            roughness: 0.3,
+            emissive: 0x2a2a1a,
+            emissiveIntensity: 0.1
+        });
+
+        const band1Geom = new THREE.TorusGeometry(0.42, 0.008, 16, 64);
+        const band1 = new THREE.Mesh(band1Geom, bandMat);
+        band1.rotation.x = Math.PI / 2;
+        band1.position.y = -baseRadius - 0.12;
+        baseGroup.add(band1);
+
+        const band2Geom = new THREE.TorusGeometry(0.62, 0.008, 16, 64);
+        const band2 = new THREE.Mesh(band2Geom, bandMat);
+        band2.rotation.x = Math.PI / 2;
+        band2.position.y = -baseRadius - 0.22;
+        baseGroup.add(band2);
 
         scene.add(baseGroup);
 
@@ -184,10 +290,10 @@
         const sphereGeom = new THREE.SphereGeometry(baseRadius, 64, 64);
         const sphereMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            metalness: 0.1,
-            roughness: 0.03,
+            metalness: 0.05,
+            roughness: 0.02,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.12,
             envMapIntensity: 2.5,
             side: THREE.DoubleSide,
             depthWrite: false,
@@ -197,7 +303,8 @@
         const crystalBall = new THREE.Mesh(sphereGeom, sphereMat);
         ballGroup.add(crystalBall);
 
-        // Внутренние звёзды
+        // === ВНУТРЕННИЕ ЗВЁЗДЫ (5 главных) ===
+        // 🔧 РАСШИРЕНО РАСПРЕДЕЛЕНИЕ ОТ ЦЕНТРА (было 0.75, стало 0.85)
         const innerStars = new THREE.Group();
 
         function createStarTexture() {
@@ -241,6 +348,7 @@
             blending: THREE.AdditiveBlending
         });
 
+        // 🔧 Звёзды распределены по большему объёму (0.85 вместо 0.75)
         const starPositions = [
             { x: 0.35, y: 0.45, z: 0.25, scale: 0.42 },
             { x: -0.45, y: -0.25, z: 0.35, scale: 0.38 },
@@ -251,7 +359,8 @@
 
         starPositions.forEach((pos, i) => {
             const star = new THREE.Sprite(starMat);
-            star.position.set(pos.x * 0.75, pos.y * 0.75, pos.z * 0.75);
+            // 🔧 Увеличен множитель распределения от центра
+            star.position.set(pos.x * 0.85, pos.y * 0.85, pos.z * 0.85);
             star.scale.set(pos.scale, pos.scale, 1);
             star.userData = { baseScale: pos.scale, offset: i * 0.9, twinkleSpeed: 0.002 + Math.random() * 0.002 };
             innerStars.add(star);
@@ -259,7 +368,8 @@
 
         crystalBall.add(innerStars);
 
-        // Искры
+        // === ИСКРЫ (150 мелких огоньков) ===
+        // 🔧 РАСШИРЕНО РАСПРЕДЕЛЕНИЕ ПО ОБЪЁМУ ШАРА
         const sparkles = new THREE.Group();
         const sparkleMat = new THREE.PointsMaterial({
             color: 0xffffee,
@@ -277,7 +387,9 @@
 
         for (let i = 0; i < sparkleCount; i++) {
             const i3 = i * 3;
-            const r = 0.7 * Math.cbrt(Math.random());
+            // 🔧 Было: 0.7 * Math.cbrt(Math.random())
+            // 🔧 Стало: 0.3 + 0.65 * Math.cbrt(Math.random()) - минимум 0.3 от центра, максимум 0.95
+            const r = 0.3 + 0.65 * Math.cbrt(Math.random());
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
             sparklePositions[i3] = r * Math.sin(phi) * Math.cos(theta);
@@ -297,33 +409,56 @@
 
         // === ПЫЛИНКИ ===
         const dustParticles = [];
+        
+        function createDustTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 240, 0.4)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.fill();
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const dustTex = createDustTexture();
         const dustMat = new THREE.SpriteMaterial({
+            map: dustTex,
             color: 0xffffee,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.3,
             sizeAttenuation: true,
             depthTest: false,
             blending: THREE.AdditiveBlending
         });
 
-        for (let i = 0; i < 3; i++) {
-            const dust = new THREE.Sprite(dustMat);
-            dust.scale.set(0.04, 0.04, 1);
+        for (let i = 0; i < 30; i++) {
+            const dust = new THREE.Sprite(dustMat.clone());
+            dust.scale.set(0.025, 0.025, 1);
             dust.position.set(
+                (Math.random() - 0.5) * 16,
                 (Math.random() - 0.5) * 12,
-                (Math.random() - 0.5) * 8,
-                (Math.random() - 0.5) * 6
+                (Math.random() - 0.5) * 10
             );
             scene.add(dust);
 
             dust.userData = {
                 velocity: new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.015,
                     (Math.random() - 0.5) * 0.01,
-                    (Math.random() - 0.5) * 0.008
+                    (Math.random() - 0.5) * 0.006,
+                    (Math.random() - 0.5) * 0.005
                 ),
-                baseOpacity: 0.25 + Math.random() * 0.25,
-                offset: i * 2
+                baseOpacity: 0.15 + Math.random() * 0.2,
+                offset: i * 1.2,
+                rotationSpeed: (Math.random() - 0.5) * 0.002
             };
             dustParticles.push(dust);
         }
@@ -337,15 +472,11 @@
         const damping = 0.96;
         const sens = 0.005;
 
-        // 🔧 ИСПРАВЛЕНИЕ: синхронизация шара и подставки при зуме
         function toggleZoom() {
             isZoomed = !isZoomed;
             const targetScale = isZoomed ? 2.0 : 1.0;
             const startScale = ballGroup.scale.x;
             const startBaseY = baseGroup.position.y;
-            
-            // Подставка должна смещаться вниз при увеличении
-            // Чтобы низ шара оставался на том же уровне относительно подставки
             const targetBaseY = -(targetScale - 1) * baseRadius;
             
             const duration = 350;
@@ -356,11 +487,9 @@
                 const progress = Math.min(elapsed / duration, 1);
                 const ease = 1 - Math.pow(1 - progress, 3);
 
-                // Масштаб шара
                 const currentScale = startScale + (targetScale - startScale) * ease;
                 ballGroup.scale.set(currentScale, currentScale, currentScale);
 
-                // Позиция подставки (смещается вниз при увеличении)
                 const currentBaseY = startBaseY + (targetBaseY - startBaseY) * ease;
                 baseGroup.position.y = currentBaseY;
 
@@ -446,25 +575,25 @@
             }
 
             innerStars.children.forEach((star, i) => {
-                const twinkle = Math.sin(time * 3 + star.userData.offset) * 0.2;
+                const twinkle = Math.sin(time * 1 + star.userData.offset) * 0.2;
                 const scale = star.userData.baseScale + twinkle;
                 star.scale.set(scale, scale, 1);
-                star.material.opacity = 0.75 + Math.sin(time * 4 + i) * 0.2;
+                star.material.opacity = 0.75 + Math.sin(time * 1.33 + i) * 0.2;
             });
 
-            sparkleMat.opacity = 0.7 + Math.sin(time * 5) * 0.2;
+            sparkleMat.opacity = 0.7 + Math.sin(time * 1.67) * 0.2;
 
             dustParticles.forEach((dust, i) => {
                 dust.position.add(dust.userData.velocity);
-                if (Math.abs(dust.position.x) > 9) dust.userData.velocity.x *= -1;
-                if (Math.abs(dust.position.y) > 6) dust.userData.velocity.y *= -1;
-                if (Math.abs(dust.position.z) > 5) dust.userData.velocity.z *= -1;
+                if (Math.abs(dust.position.x) > 11) dust.userData.velocity.x *= -1;
+                if (Math.abs(dust.position.y) > 8) dust.userData.velocity.y *= -1;
+                if (Math.abs(dust.position.z) > 7) dust.userData.velocity.z *= -1;
                 dust.material.opacity = dust.userData.baseOpacity + Math.sin(time * 2 + dust.userData.offset) * 0.1;
             });
 
             if (!isDragging) {
                 const bobAmplitude = 0.015;
-                ballGroup.position.y = baseGroup.position.y + Math.sin(time * 0.4) * bobAmplitude;
+                ballGroup.position.y = Math.sin(time * 0.4) * bobAmplitude;
             }
 
             renderer.render(scene, camera);
