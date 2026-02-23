@@ -58,7 +58,6 @@
         const ambientLight = new THREE.AmbientLight(0xffaa66, 0.5);
         scene.add(ambientLight);
 
-        // Тёплые свечи
         const candleLights = [];
         const candleData = [
             { x: -5, y: 3, z: -5, color: 0xffaa44, intensity: 120 },
@@ -80,7 +79,6 @@
             });
         });
 
-        // Основной свет на шар
         const mainLight = new THREE.PointLight(0xffffff, 80, 15);
         mainLight.position.set(4, 5, 6);
         scene.add(mainLight);
@@ -89,7 +87,7 @@
         fillLight.position.set(-4, 3, 4);
         scene.add(fillLight);
 
-        // === ФОНОВЫЕ БОКЕ (свечи) ===
+        // === ФОНОВЫЕ БОКЕ ===
         const bgBokehGroup = new THREE.Group();
 
         function createBokehTexture() {
@@ -137,6 +135,7 @@
 
         // === ПОДСТАВКА ===
         const baseGroup = new THREE.Group();
+        const baseRadius = 1.0;
 
         const baseMat = new THREE.MeshStandardMaterial({
             color: 0x3a3a4a,
@@ -154,25 +153,21 @@
             emissiveIntensity: 0.2
         });
 
-        // Основание
         const baseBottomGeom = new THREE.CylinderGeometry(1.4, 1.6, 0.35, 48);
         const baseBottom = new THREE.Mesh(baseBottomGeom, baseMat);
         baseBottom.position.y = -1.5;
         baseGroup.add(baseBottom);
 
-        // Средний ярус
         const baseMiddleGeom = new THREE.CylinderGeometry(1.0, 1.4, 0.45, 48);
         const baseMiddle = new THREE.Mesh(baseMiddleGeom, bronzeMat);
         baseMiddle.position.y = -1.2;
         baseGroup.add(baseMiddle);
 
-        // Верхний ярус
         const baseTopGeom = new THREE.CylinderGeometry(0.7, 1.0, 0.3, 48);
         const baseTop = new THREE.Mesh(baseTopGeom, bronzeMat);
         baseTop.position.y = -0.9;
         baseGroup.add(baseTop);
 
-        // Декоративные кольца
         for (let i = 0; i < 3; i++) {
             const ringGeom = new THREE.TorusGeometry(0.85 - i * 0.15, 0.035, 16, 64);
             const ring = new THREE.Mesh(ringGeom, bronzeMat);
@@ -185,9 +180,7 @@
 
         // === ХРУСТАЛЬНЫЙ ШАР ===
         const ballGroup = new THREE.Group();
-        const baseRadius = 1.0;
 
-        // Используем MeshStandardMaterial с прозрачностью для совместимости
         const sphereGeom = new THREE.SphereGeometry(baseRadius, 64, 64);
         const sphereMat = new THREE.MeshStandardMaterial({
             color: 0xffffff,
@@ -204,7 +197,7 @@
         const crystalBall = new THREE.Mesh(sphereGeom, sphereMat);
         ballGroup.add(crystalBall);
 
-        // Внутренние звёзды (5 главных)
+        // Внутренние звёзды
         const innerStars = new THREE.Group();
 
         function createStarTexture() {
@@ -213,7 +206,6 @@
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
 
-            // Яркий центр
             const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
             grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
             grad.addColorStop(0.1, 'rgba(255, 255, 220, 0.95)');
@@ -225,7 +217,6 @@
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 128, 128);
 
-            // Лучи звезды
             ctx.strokeStyle = 'rgba(255, 255, 230, 0.5)';
             ctx.lineWidth = 1.5;
             for (let i = 0; i < 8; i++) {
@@ -268,7 +259,7 @@
 
         crystalBall.add(innerStars);
 
-        // Множество мелких искр внутри шара
+        // Искры
         const sparkles = new THREE.Group();
         const sparkleMat = new THREE.PointsMaterial({
             color: 0xffffee,
@@ -304,7 +295,7 @@
         ballGroup.add(crystalBall);
         scene.add(ballGroup);
 
-        // === ПЫЛИНКИ (3 шт) ===
+        // === ПЫЛИНКИ ===
         const dustParticles = [];
         const dustMat = new THREE.SpriteMaterial({
             color: 0xffffee,
@@ -346,22 +337,38 @@
         const damping = 0.96;
         const sens = 0.005;
 
+        // 🔧 ИСПРАВЛЕНИЕ: синхронизация шара и подставки при зуме
         function toggleZoom() {
             isZoomed = !isZoomed;
             const targetScale = isZoomed ? 2.0 : 1.0;
             const startScale = ballGroup.scale.x;
+            const startBaseY = baseGroup.position.y;
+            
+            // Подставка должна смещаться вниз при увеличении
+            // Чтобы низ шара оставался на том же уровне относительно подставки
+            const targetBaseY = -(targetScale - 1) * baseRadius;
+            
             const duration = 350;
             const startTime = performance.now();
 
-            function animateScale() {
+            function animateZoom() {
                 const elapsed = performance.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 const ease = 1 - Math.pow(1 - progress, 3);
-                const current = startScale + (targetScale - startScale) * ease;
-                ballGroup.scale.set(current, current, current);
-                if (progress < 1) requestAnimationFrame(animateScale);
+
+                // Масштаб шара
+                const currentScale = startScale + (targetScale - startScale) * ease;
+                ballGroup.scale.set(currentScale, currentScale, currentScale);
+
+                // Позиция подставки (смещается вниз при увеличении)
+                const currentBaseY = startBaseY + (targetBaseY - startBaseY) * ease;
+                baseGroup.position.y = currentBaseY;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateZoom);
+                }
             }
-            animateScale();
+            animateZoom();
         }
 
         const onStart = (e) => {
@@ -410,21 +417,18 @@
             requestAnimationFrame(animate);
             const time = Date.now() * 0.001;
 
-            // Мерцание свечей
             candleLights.forEach((candle, i) => {
                 candle.light.intensity = candle.baseIntensity +
                     Math.sin(time * 8 + candle.offset) * 15 +
                     Math.sin(time * 12 + candle.offset * 1.3) * 10;
             });
 
-            // Мерцание боке
             bgBokehGroup.children.forEach((sprite, i) => {
                 sprite.material.opacity = 0.4 + Math.sin(time * 2 + i) * 0.2;
                 const scale = sprite.userData.baseScale + Math.sin(time * 1.5 + i) * 0.05;
                 sprite.scale.set(scale, scale, 1);
             });
 
-            // Вращение по инерции
             if (!isDragging) {
                 ballGroup.rotation.y += rotVel.y;
                 ballGroup.rotation.x += rotVel.x;
@@ -441,7 +445,6 @@
                 }
             }
 
-            // Пульсация главных звёзд
             innerStars.children.forEach((star, i) => {
                 const twinkle = Math.sin(time * 3 + star.userData.offset) * 0.2;
                 const scale = star.userData.baseScale + twinkle;
@@ -449,10 +452,8 @@
                 star.material.opacity = 0.75 + Math.sin(time * 4 + i) * 0.2;
             });
 
-            // Мерцание искр
             sparkleMat.opacity = 0.7 + Math.sin(time * 5) * 0.2;
 
-            // Пылинки
             dustParticles.forEach((dust, i) => {
                 dust.position.add(dust.userData.velocity);
                 if (Math.abs(dust.position.x) > 9) dust.userData.velocity.x *= -1;
@@ -461,10 +462,9 @@
                 dust.material.opacity = dust.userData.baseOpacity + Math.sin(time * 2 + dust.userData.offset) * 0.1;
             });
 
-            // Лёгкое покачивание
             if (!isDragging) {
-                ballGroup.position.y = Math.sin(time * 0.4) * 0.015;
-                baseGroup.position.y = Math.sin(time * 0.4) * 0.015;
+                const bobAmplitude = 0.015;
+                ballGroup.position.y = baseGroup.position.y + Math.sin(time * 0.4) * bobAmplitude;
             }
 
             renderer.render(scene, camera);
