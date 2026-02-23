@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Star Sphere</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505; /* Глубокий темный фон для атмосферы */
+            font-family: sans-serif;
+        }
+        canvas {
+            display: block;
+            touch-action: none; /* Отключаем стандартные жесты браузера */
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+    </style>
+    <!-- Подключаем Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="loading">Загрузка сцены...</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Настройка сцены ---
+        const scene = new THREE.Scene();
+        // Добавим легкий туман для глубины
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.z = 12;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Оптимизация для мобильных
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; // Кинематографичная цветокоррекция
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Освещение (для реалистичности стекла) ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const pointLight1 = new THREE.PointLight(0x4488ff, 200);
+        pointLight1.position.set(5, 5, 5);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0xff4488, 150);
+        pointLight2.position.set(-5, -5, 5);
+        scene.add(pointLight2);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(0, 5, 10);
+        scene.add(dirLight);
+
+        // --- Создание полупрозрачного шара ---
+        const sphereGeometry = new THREE.SphereGeometry(3, 64, 64);
+        const sphereMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            metalness: 0.1,
+            roughness: 0.05,
+            transmission: 0.95, // Прозрачность (стекло)
+            thickness: 1.5,     // Объем стекла для преломления
+            envMapIntensity: 1.5,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1,
+            side: THREE.DoubleSide
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        scene.add(sphere);
+
+        // --- Создание звёздочек внутри ---
+        const starsGroup = new THREE.Group();
+        
+        // Функция для создания текстуры звезды программно (чтобы не грузить картинки)
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 255, 200, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(255, 200, 100, 0.4)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        const starTexture = createStarTexture();
+        const starMaterial = new THREE.SpriteMaterial({ 
+            map: starTexture, 
+            color: 0xffeebb, 
+            transparent: true, 
+            blending: THREE.AdditiveBlending 
+        });
+
+        // Размещаем 5 звезд в случайных позициях внутри сферы (радиус < 2.5)
+        const positions = [];
+        for (let i = 0; i < 5; i++) {
+            const star = new THREE.Sprite(starMaterial);
+            
+            // Случайная позиция внутри сферы
+            const r = 2.2 * Math.cbrt(Math.random()); // Равномерное распределение в объеме
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            const x = r * Math.sin(phi) * Math.cos(theta);
+            const y = r * Math.sin(phi) * Math.sin(theta);
+            const z = r * Math.cos(phi);
+            
+            star.position.set(x, y, z);
+            
+            // Немного разный размер для разнообразия
+            const scale = 0.4 + Math.random() * 0.3;
+            star.scale.set(scale, scale, 1);
+            
+            starsGroup.add(star);
+            positions.push({ sprite: star, basePos: new THREE.Vector3(x, y, z), speed: 0.002 + Math.random() * 0.003 });
+        }
+        
+        sphere.add(starsGroup); // Прикрепляем звезды к сфере, чтобы они вращались вместе с ней визуально, но имеют свою логику
+
+        // --- Логика вращения (Touch/Mouse) ---
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let rotationVelocity = { x: 0.002, y: 0.003 }; // Начальное медленное вращение
+        const damping = 0.96; // Инерция (чем меньше, тем быстрее остановка)
+        const sensitivity = 0.005; // Чувствительность к касанию
+
+        const onStart = (e) => {
+            isDragging = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            previousMousePosition = { x: clientX, y: clientY };
+            
+            // Сбрасываем авто-вращение при касании
+            rotationVelocity = { x: 0, y: 0 };
+        };
+
+        const onMove = (e) => {
+            if (!isDragging) return;
+            
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const deltaMove = {
+                x: clientX - previousMousePosition.x,
+                y: clientY - previousMousePosition.y
+            };
+
+            // Вращаем группу со звездами и саму сферу
+            const deltaRotationQuaternion = new THREE.Quaternion()
+                .setFromEuler(new THREE.Euler(
+                    deltaMove.y * sensitivity,
+                    deltaMove.x * sensitivity,
+                    0,
+                    'XYZ'
+                ));
+            
+            sphere.quaternion.multiplyQuaternions(deltaRotationQuaternion, sphere.quaternion);
+            starsGroup.quaternion.multiplyQuaternions(deltaRotationQuaternion, starsGroup.quaternion);
+
+            // Сохраняем скорость для инерции
+            rotationVelocity.x = deltaMove.y * sensitivity;
+            rotationVelocity.y = deltaMove.x * sensitivity;
+
+            previousMousePosition = { x: clientX, y: clientY };
+        };
+
+        const onEnd = () => {
+            isDragging = false;
+        };
+
+        // Слушатели событий
+        document.addEventListener('mousedown', onStart);
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        
+        document.addEventListener('touchstart', onStart, { passive: false });
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+
+        // Убираем надпись загрузки
+        document.getElementById('loading').style.opacity = 0;
+
+        // --- Анимационный цикл ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isDragging) {
+                // Применяем инерцию
+                sphere.rotation.y += rotationVelocity.y;
+                sphere.rotation.x += rotationVelocity.x;
+                
+                starsGroup.rotation.y += rotationVelocity.y;
+                starsGroup.rotation.x += rotationVelocity.x;
+
+                // Затухание скорости
+                rotationVelocity.x *= damping;
+                rotationVelocity.y *= damping;
+
+                // Если скорость очень маленькая, добавляем едва заметное постоянное вращение для жизни сцены
+                if (Math.abs(rotationVelocity.x) < 0.0001 && Math.abs(rotationVelocity.y) < 0.0001) {
+                    sphere.rotation.y += 0.001;
+                    starsGroup.rotation.y += 0.001;
+                }
+            }
+
+            // Легкая пульсация звезд для динамики
+            const time = Date.now() * 0.001;
+            positions.forEach((p, index) => {
+                p.sprite.scale.setScalar(0.4 + Math.random() * 0.1 + Math.sin(time * 2 + index) * 0.05);
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
