@@ -316,9 +316,6 @@
             const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
             grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
             grad.addColorStop(0.1, 'rgba(255, 255, 220, 0.95)');
-            grad.addColorStop(0.2, 'rgba(255, 240, 180, 0.8)');
-            grad.addColorStop(0.35, 'rgba(255, 200, 120, 0.5)');
-            grad.addColorStop(0.6, 'rgba(255, 150, 80, 0.2)');
             grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
             ctx.fillStyle = grad;
@@ -351,10 +348,7 @@
         // 🔧 Звёзды распределены по большему объёму (0.85 вместо 0.75)
         const starPositions = [
             { x: 0.35, y: 0.45, z: 0.25, scale: 0.42 },
-            { x: -0.45, y: -0.25, z: 0.35, scale: 0.38 },
-            { x: 0.15, y: -0.55, z: -0.35, scale: 0.48 },
-            { x: -0.25, y: 0.35, z: -0.45, scale: 0.35 },
-            { x: 0.55, y: 0.15, z: -0.25, scale: 0.4 }
+            { x: -0.45, y: -0.25, z: 0.35, scale: 0.38 }
         ];
 
         starPositions.forEach((pos, i) => {
