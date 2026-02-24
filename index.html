@@ -87,8 +87,7 @@
         fillLight.position.set(-4, 4, 4);
         scene.add(fillLight);
 
-        // === ФОНОВЫЕ БОКЕ ===
-        const bgBokehGroup = new THREE.Group();
+        // === ТЕКСТУРЫ ===
 
         function createBokehTexture() {
             const canvas = document.createElement('canvas');
@@ -96,64 +95,104 @@
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
             const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-            grad.addColorStop(0, 'rgba(255, 200, 100, 0.8)');
-            grad.addColorStop(0.3, 'rgba(255, 150, 50, 0.4)');
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            grad.addColorStop(0.2, 'rgba(255, 255, 255, 0.6)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
             grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, 128, 128);
             return new THREE.CanvasTexture(canvas);
         }
 
-        const bokehTex = createBokehTexture();
-        const bokehMat = new THREE.SpriteMaterial({
-            map: bokehTex,
-            color: 0xffcc88,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending,
-            depthTest: false
-        });
+        function createCloudTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 120);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.05)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(128, 128, 100, 0, Math.PI * 2);
+            ctx.fill();
+            
+            for(let i=0; i<5; i++) {
+                const x = 128 + (Math.random() - 0.5) * 150;
+                const y = 128 + (Math.random() - 0.5) * 150;
+                const r = 30 + Math.random() * 40;
+                const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+                g.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+                g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            return new THREE.CanvasTexture(canvas);
+        }
 
-        const bokehPositions = [
-            { x: -5, y: 4, z: -8, scale: 0.8, color: 0xffaa66 },
-            { x: -4.5, y: 3.5, z: -8.5, scale: 0.6, color: 0xffcc88 },
-            { x: 5, y: 3.5, z: -9, scale: 0.9, color: 0xffdd99 },
-            { x: 4.5, y: 3.2, z: -8.5, scale: 0.7, color: 0xffbb77 },
-            { x: 0, y: 5, z: -10, scale: 0.75, color: 0xffeeaa }
-        ];
+        function createStarTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.1, 'rgba(255, 255, 220, 0.95)');
+            grad.addColorStop(0.2, 'rgba(255, 240, 180, 0.8)');
+            grad.addColorStop(0.35, 'rgba(255, 200, 120, 0.5)');
+            grad.addColorStop(0.6, 'rgba(255, 150, 80, 0.2)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.strokeStyle = 'rgba(255, 255, 230, 0.5)';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(64, 64);
+                ctx.lineTo(64 + Math.cos(angle) * 55, 64 + Math.sin(angle) * 55);
+                ctx.stroke();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
 
-        bokehPositions.forEach(pos => {
-            const sprite = new THREE.Sprite(bokehMat.clone());
-            sprite.material.color.setHex(pos.color);
-            sprite.material.opacity = 0.5 + Math.random() * 0.3;
-            sprite.scale.set(pos.scale, pos.scale, 1);
-            sprite.position.set(pos.x, pos.y, pos.z);
-            sprite.userData = { baseScale: pos.scale, flickerSpeed: 0.001 + Math.random() * 0.002 };
-            bgBokehGroup.add(sprite);
-        });
-        scene.add(bgBokehGroup);
+        function createDustTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 240, 0.4)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(32, 32, 30, 0, Math.PI * 2);
+            ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        }
 
-        // === ГРАВИРОВАННЫЙ УЗОР ДЛЯ ПОДСТАВКИ ===
         function createEngravingTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = '#2a2a35';
             ctx.fillRect(0, 0, 512, 256);
-
             ctx.strokeStyle = '#4a4a5a';
             ctx.lineWidth = 2;
-
             const patternWidth = 64;
             const patternHeight = 64;
-
             for (let row = 0; row < 4; row++) {
                 for (let col = 0; col < 8; col++) {
                     const x = col * patternWidth + patternWidth / 2;
                     const y = row * patternHeight + patternHeight / 2;
-
                     ctx.beginPath();
                     ctx.moveTo(x, y - 20);
                     ctx.lineTo(x + 15, y);
@@ -161,50 +200,115 @@
                     ctx.lineTo(x - 15, y);
                     ctx.closePath();
                     ctx.stroke();
-
                     ctx.beginPath();
                     ctx.arc(x, y, 8, 0, Math.PI * 2);
                     ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.moveTo(x - 25, y);
-                    ctx.lineTo(x - 18, y);
-                    ctx.moveTo(x + 18, y);
-                    ctx.lineTo(x + 25, y);
-                    ctx.moveTo(x, y - 25);
-                    ctx.lineTo(x, y - 18);
-                    ctx.moveTo(x, y + 18);
-                    ctx.lineTo(x, y + 25);
-                    ctx.stroke();
                 }
             }
-
             ctx.strokeStyle = '#5a5a6a';
             ctx.lineWidth = 3;
-            
             ctx.beginPath();
             for (let i = 0; i <= 512; i += 5) {
                 const y = 15 + Math.sin(i * 0.05) * 5;
-                if (i === 0) ctx.moveTo(i, y);
-                else ctx.lineTo(i, y);
+                if (i === 0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
             }
             ctx.stroke();
-
-            ctx.beginPath();
-            for (let i = 0; i <= 512; i += 5) {
-                const y = 241 + Math.sin(i * 0.05) * 5;
-                if (i === 0) ctx.moveTo(i, y);
-                else ctx.lineTo(i, y);
-            }
-            ctx.stroke();
-
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             return texture;
         }
 
+        const bokehTex = createBokehTexture();
+        const cloudTex = createCloudTexture();
+        const starTex = createStarTexture();
+        const dustTex = createDustTexture();
         const engravingTexture = createEngravingTexture();
+
+        // === ФОНОВЫЕ БОКЕ ===
+        const bgBokehGroup = new THREE.Group();
+        const bokehColors = [0x4488ff, 0xff4444, 0xffaa00, 0xaa44ff, 0x00ffff, 0xff00aa, 0x44ff88, 0xff8844];
+        
+        for (let i = 0; i < 70; i++) {
+            const color = bokehColors[Math.floor(Math.random() * bokehColors.length)];
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: bokehTex,
+                color: color,
+                transparent: true,
+                opacity: 0.4 + Math.random() * 0.4,
+                blending: THREE.AdditiveBlending,
+                depthTest: false
+            }));
+            
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const radius = 18 + Math.random() * 12;
+            
+            const x = radius * Math.sin(phi) * Math.cos(theta);
+            const y = radius * Math.sin(phi) * Math.sin(theta) + 2;
+            const z = radius * Math.cos(phi) - 5;
+            
+            sprite.position.set(x, y, z);
+            
+            const scale = 2.5 + Math.random() * 4 + (radius / 10);
+            sprite.scale.set(scale, scale, 1);
+            
+            sprite.userData = { 
+                baseScale: scale, 
+                baseX: x,
+                baseY: y,
+                baseZ: z,
+                flickerSpeed: 0.001 + Math.random() * 0.002,
+                offset: Math.random() * 10,
+                theta: theta,
+                phi: phi,
+                radius: radius
+            };
+            bgBokehGroup.add(sprite);
+        }
+        scene.add(bgBokehGroup);
+
+        // === ПРИЗРАЧНЫЕ ОБЛАКА ===
+        const cloudGroup = new THREE.Group();
+        const cloudMat = new THREE.SpriteMaterial({
+            map: cloudTex,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.12,
+            blending: THREE.NormalBlending,
+            depthTest: false
+        });
+
+        const clouds = [];
+        for (let i = 0; i < 5; i++) {
+            const cloud = new THREE.Sprite(cloudMat.clone());
+            const scale = 5 + Math.random() * 4;
+            cloud.scale.set(scale, scale, 1);
+            
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const radius = 14 + Math.random() * 6;
+            
+            cloud.position.set(
+                radius * Math.sin(phi) * Math.cos(theta),
+                radius * Math.sin(phi) * Math.sin(theta) + 3,
+                radius * Math.cos(phi) - 5
+            );
+            
+            cloud.userData = {
+                baseX: cloud.position.x,
+                baseY: cloud.position.y,
+                baseZ: cloud.position.z,
+                speed: 0.0003 + Math.random() * 0.0005,
+                offset: Math.random() * 100,
+                theta: theta,
+                phi: phi,
+                radius: radius
+            };
+            
+            scene.add(cloud);
+            clouds.push(cloud);
+        }
 
         // === ПОДСТАВКА ===
         const baseGroup = new THREE.Group();
@@ -303,38 +407,8 @@
         const crystalBall = new THREE.Mesh(sphereGeom, sphereMat);
         ballGroup.add(crystalBall);
 
-        // === ВНУТРЕННИЕ ЗВЁЗДЫ (5 главных) ===
-        // 🔧 РАСШИРЕНО РАСПРЕДЕЛЕНИЕ ОТ ЦЕНТРА (было 0.75, стало 0.85)
+        // === ВНУТРЕННИЕ ЗВЁЗДЫ ===
         const innerStars = new THREE.Group();
-
-        function createStarTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-
-            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            grad.addColorStop(0.1, 'rgba(255, 255, 220, 0.95)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 128, 128);
-
-            ctx.strokeStyle = 'rgba(255, 255, 230, 0.5)';
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                ctx.beginPath();
-                ctx.moveTo(64, 64);
-                ctx.lineTo(64 + Math.cos(angle) * 55, 64 + Math.sin(angle) * 55);
-                ctx.stroke();
-            }
-
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        const starTex = createStarTexture();
         const starMat = new THREE.SpriteMaterial({
             map: starTex,
             color: 0xffffee,
@@ -345,15 +419,16 @@
             blending: THREE.AdditiveBlending
         });
 
-        // 🔧 Звёзды распределены по большему объёму (0.85 вместо 0.75)
         const starPositions = [
             { x: 0.35, y: 0.45, z: 0.25, scale: 0.42 },
-            { x: -0.45, y: -0.25, z: 0.35, scale: 0.38 }
+            { x: -0.45, y: -0.25, z: 0.35, scale: 0.38 },
+            { x: 0.15, y: -0.55, z: -0.35, scale: 0.48 },
+            { x: -0.25, y: 0.35, z: -0.45, scale: 0.35 },
+            { x: 0.55, y: 0.15, z: -0.25, scale: 0.4 }
         ];
 
         starPositions.forEach((pos, i) => {
             const star = new THREE.Sprite(starMat);
-            // 🔧 Увеличен множитель распределения от центра
             star.position.set(pos.x * 0.85, pos.y * 0.85, pos.z * 0.85);
             star.scale.set(pos.scale, pos.scale, 1);
             star.userData = { baseScale: pos.scale, offset: i * 0.9, twinkleSpeed: 0.002 + Math.random() * 0.002 };
@@ -362,8 +437,7 @@
 
         crystalBall.add(innerStars);
 
-        // === ИСКРЫ (150 мелких огоньков) ===
-        // 🔧 РАСШИРЕНО РАСПРЕДЕЛЕНИЕ ПО ОБЪЁМУ ШАРА
+        // === ИСКРЫ ===
         const sparkles = new THREE.Group();
         const sparkleMat = new THREE.PointsMaterial({
             color: 0xffffee,
@@ -381,8 +455,6 @@
 
         for (let i = 0; i < sparkleCount; i++) {
             const i3 = i * 3;
-            // 🔧 Было: 0.7 * Math.cbrt(Math.random())
-            // 🔧 Стало: 0.3 + 0.65 * Math.cbrt(Math.random()) - минимум 0.3 от центра, максимум 0.95
             const r = 0.3 + 0.65 * Math.cbrt(Math.random());
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
@@ -402,41 +474,23 @@
         scene.add(ballGroup);
 
         // === ПЫЛИНКИ ===
+        // 🔧 УВЕЛИЧЕНО ДО 100 ПЫЛИНОК
         const dustParticles = [];
-        
-        function createDustTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
-            const ctx = canvas.getContext('2d');
-            
-            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
-            grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-            grad.addColorStop(0.5, 'rgba(255, 255, 240, 0.4)');
-            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(32, 32, 30, 0, Math.PI * 2);
-            ctx.fill();
-            
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        const dustTex = createDustTexture();
         const dustMat = new THREE.SpriteMaterial({
             map: dustTex,
             color: 0xffffee,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.25,
             sizeAttenuation: true,
             depthTest: false,
             blending: THREE.AdditiveBlending
         });
 
-        for (let i = 0; i < 30; i++) {
+        // 🔧 100 пылинок вместо 30
+        for (let i = 0; i < 100; i++) {
             const dust = new THREE.Sprite(dustMat.clone());
-            dust.scale.set(0.025, 0.025, 1);
+            // 🔧 Увеличен размер в 2 раза (было 0.025, стало 0.05)
+            dust.scale.set(0.05, 0.05, 1);
             dust.position.set(
                 (Math.random() - 0.5) * 16,
                 (Math.random() - 0.5) * 12,
@@ -450,9 +504,8 @@
                     (Math.random() - 0.5) * 0.006,
                     (Math.random() - 0.5) * 0.005
                 ),
-                baseOpacity: 0.15 + Math.random() * 0.2,
-                offset: i * 1.2,
-                rotationSpeed: (Math.random() - 0.5) * 0.002
+                baseOpacity: 0.12 + Math.random() * 0.15,
+                offset: i * 1.2
             };
             dustParticles.push(dust);
         }
@@ -547,9 +600,19 @@
             });
 
             bgBokehGroup.children.forEach((sprite, i) => {
-                sprite.material.opacity = 0.4 + Math.sin(time * 2 + i) * 0.2;
-                const scale = sprite.userData.baseScale + Math.sin(time * 1.5 + i) * 0.05;
+                sprite.material.opacity = 0.5 + Math.sin(time * 2 + sprite.userData.offset) * 0.3;
+                const scale = sprite.userData.baseScale + Math.sin(time * 1.5 + i) * 0.08;
                 sprite.scale.set(scale, scale, 1);
+            });
+
+            clouds.forEach((cloud, i) => {
+                cloud.userData.theta += cloud.userData.speed * 0.5;
+                
+                cloud.position.x = cloud.userData.radius * Math.sin(cloud.userData.phi) * Math.cos(cloud.userData.theta);
+                cloud.position.y = cloud.userData.radius * Math.sin(cloud.userData.phi) * Math.sin(cloud.userData.theta) + 3;
+                cloud.position.z = cloud.userData.radius * Math.cos(cloud.userData.phi) - 5;
+                
+                cloud.material.opacity = 0.1 + Math.sin(time * 0.3 + i) * 0.05;
             });
 
             if (!isDragging) {
@@ -577,12 +640,13 @@
 
             sparkleMat.opacity = 0.7 + Math.sin(time * 1.67) * 0.2;
 
+            // 🔧 Анимация 100 пылинок
             dustParticles.forEach((dust, i) => {
                 dust.position.add(dust.userData.velocity);
                 if (Math.abs(dust.position.x) > 11) dust.userData.velocity.x *= -1;
                 if (Math.abs(dust.position.y) > 8) dust.userData.velocity.y *= -1;
                 if (Math.abs(dust.position.z) > 7) dust.userData.velocity.z *= -1;
-                dust.material.opacity = dust.userData.baseOpacity + Math.sin(time * 2 + dust.userData.offset) * 0.1;
+                dust.material.opacity = dust.userData.baseOpacity + Math.sin(time * 2 + dust.userData.offset) * 0.08;
             });
 
             if (!isDragging) {
