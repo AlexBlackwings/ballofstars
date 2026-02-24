@@ -136,29 +136,132 @@
             return new THREE.CanvasTexture(canvas);
         }
 
+        // 🔧 УЛУЧШЕННАЯ ТЕКСТУРА ЗВЕЗДЫ С БОЛЕЕ ПЛАВНЫМ СВЕЧЕНИЕМ
         function createStarTexture() {
+            // 🔧 Увеличенное разрешение для более плавных градиентов
             const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = 512;
+            canvas.height = 512;
             const ctx = canvas.getContext('2d');
-            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-            grad.addColorStop(0.1, 'rgba(255, 255, 220, 0.95)');
-            grad.addColorStop(0.2, 'rgba(255, 240, 180, 0.8)');
-            grad.addColorStop(0.35, 'rgba(255, 200, 120, 0.5)');
-            grad.addColorStop(0.6, 'rgba(255, 150, 80, 0.2)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, 128, 128);
-            ctx.strokeStyle = 'rgba(255, 255, 230, 0.5)';
-            ctx.lineWidth = 1.5;
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                ctx.beginPath();
-                ctx.moveTo(64, 64);
-                ctx.lineTo(64 + Math.cos(angle) * 55, 64 + Math.sin(angle) * 55);
-                ctx.stroke();
+            const cx = 256;
+            const cy = 256;
+
+            // 1. Многослойное ядро с очень плавным переходом
+            // Слой 1 - самое яркое centrum
+            const coreGrad1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+            coreGrad1.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            coreGrad1.addColorStop(0.5, 'rgba(255, 255, 250, 0.95)');
+            coreGrad1.addColorStop(1, 'rgba(255, 255, 240, 0.8)');
+            ctx.fillStyle = coreGrad1;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Слой 2 - среднее свечение
+            const coreGrad2 = ctx.createRadialGradient(cx, cy, 20, cx, cy, 80);
+            coreGrad2.addColorStop(0, 'rgba(255, 255, 240, 0.7)');
+            coreGrad2.addColorStop(0.3, 'rgba(255, 255, 220, 0.5)');
+            coreGrad2.addColorStop(0.6, 'rgba(255, 250, 200, 0.3)');
+            coreGrad2.addColorStop(1, 'rgba(255, 240, 180, 0)');
+            ctx.fillStyle = coreGrad2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Слой 3 - внешнее мягкое гало
+            const coreGrad3 = ctx.createRadialGradient(cx, cy, 60, cx, cy, 180);
+            coreGrad3.addColorStop(0, 'rgba(255, 240, 180, 0.25)');
+            coreGrad3.addColorStop(0.4, 'rgba(255, 220, 150, 0.15)');
+            coreGrad3.addColorStop(0.7, 'rgba(255, 200, 120, 0.08)');
+            coreGrad3.addColorStop(1, 'rgba(255, 180, 100, 0)');
+            ctx.fillStyle = coreGrad3;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 180, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Лучи с ОЧЕНЬ плавным затуханием
+            const numRays = 8;
+            const rayLength = 200;
+            
+            for (let i = 0; i < numRays; i++) {
+                const angle = (i / numRays) * Math.PI * 2;
+                
+                // 🔧 Используем кривые Безье для более органичной формы лучей
+                const endX = cx + Math.cos(angle) * rayLength;
+                const endY = cy + Math.sin(angle) * rayLength;
+                
+                // 🔧 Многослойные градиенты для каждого луча
+                for (let layer = 0; layer < 3; layer++) {
+                    const layerLength = rayLength * (1 - layer * 0.25);
+                    const layerWidth = (12 - layer * 3) * (1 - layer * 0.2);
+                    
+                    const rayGrad = ctx.createLinearGradient(cx, cy, endX, endY);
+                    
+                    // 🔧 Больше цветовых остановок для плавности
+                    if (layer === 0) {
+                        rayGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+                        rayGrad.addColorStop(0.15, 'rgba(255, 255, 240, 0.6)');
+                        rayGrad.addColorStop(0.35, 'rgba(255, 255, 220, 0.4)');
+                        rayGrad.addColorStop(0.55, 'rgba(255, 250, 200, 0.25)');
+                        rayGrad.addColorStop(0.75, 'rgba(255, 240, 180, 0.12)');
+                        rayGrad.addColorStop(0.9, 'rgba(255, 230, 160, 0.05)');
+                        rayGrad.addColorStop(1, 'rgba(255, 220, 140, 0)');
+                    } else if (layer === 1) {
+                        rayGrad.addColorStop(0, 'rgba(255, 255, 240, 0.5)');
+                        rayGrad.addColorStop(0.2, 'rgba(255, 250, 220, 0.35)');
+                        rayGrad.addColorStop(0.5, 'rgba(255, 240, 200, 0.2)');
+                        rayGrad.addColorStop(0.8, 'rgba(255, 230, 180, 0.08)');
+                        rayGrad.addColorStop(1, 'rgba(255, 220, 160, 0)');
+                    } else {
+                        rayGrad.addColorStop(0, 'rgba(255, 250, 230, 0.3)');
+                        rayGrad.addColorStop(0.3, 'rgba(255, 240, 210, 0.2)');
+                        rayGrad.addColorStop(0.6, 'rgba(255, 230, 190, 0.1)');
+                        rayGrad.addColorStop(1, 'rgba(255, 220, 170, 0)');
+                    }
+                    
+                    ctx.fillStyle = rayGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    
+                    const perpAngle = angle + Math.PI / 2;
+                    const leftBaseX = cx + Math.cos(perpAngle) * layerWidth * 0.5;
+                    const leftBaseY = cy + Math.sin(perpAngle) * layerWidth * 0.5;
+                    
+                    // 🔧 Кривая для более органичной формы
+                    const ctrlX1 = cx + Math.cos(angle) * layerLength * 0.3 + Math.cos(perpAngle) * layerWidth * 0.3;
+                    const ctrlY1 = cy + Math.sin(angle) * layerLength * 0.3 + Math.sin(perpAngle) * layerWidth * 0.3;
+                    const ctrlX2 = cx + Math.cos(angle) * layerLength * 0.7 + Math.cos(perpAngle) * layerWidth * 0.15;
+                    const ctrlY2 = cy + Math.sin(angle) * layerLength * 0.7 + Math.sin(perpAngle) * layerWidth * 0.15;
+                    
+                    const tipX = cx + Math.cos(angle) * layerLength;
+                    const tipY = cy + Math.sin(angle) * layerLength;
+                    
+                    ctx.quadraticCurveTo(ctrlX1, ctrlY1, leftBaseX, leftBaseY);
+                    ctx.quadraticCurveTo(ctrlX2, ctrlY2, tipX, tipY);
+                    
+                    const rightBaseX = cx - Math.cos(perpAngle) * layerWidth * 0.5;
+                    const rightBaseY = cy - Math.sin(perpAngle) * layerWidth * 0.5;
+                    
+                    ctx.quadraticCurveTo(ctrlX2, ctrlY2, rightBaseX, rightBaseY);
+                    ctx.quadraticCurveTo(ctrlX1, ctrlY1, cx, cy);
+                    ctx.closePath();
+                    ctx.fill();
+                }
             }
+
+            // 3. Финальное общее гало для сглаживания всех переходов
+            const finalHalo = ctx.createRadialGradient(cx, cy, 100, cx, cy, 256);
+            finalHalo.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            finalHalo.addColorStop(0.3, 'rgba(255, 255, 250, 0.03)');
+            finalHalo.addColorStop(0.5, 'rgba(255, 250, 240, 0.05)');
+            finalHalo.addColorStop(0.7, 'rgba(255, 240, 220, 0.03)');
+            finalHalo.addColorStop(0.85, 'rgba(255, 230, 200, 0.015)');
+            finalHalo.addColorStop(1, 'rgba(255, 220, 180, 0)');
+            ctx.fillStyle = finalHalo;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 256, 0, Math.PI * 2);
+            ctx.fill();
+
             return new THREE.CanvasTexture(canvas);
         }
 
@@ -413,7 +516,7 @@
             map: starTex,
             color: 0xffffee,
             transparent: true,
-            alphaTest: 0.02,
+            alphaTest: 0.01,
             depthWrite: false,
             depthTest: true,
             blending: THREE.AdditiveBlending
@@ -474,7 +577,6 @@
         scene.add(ballGroup);
 
         // === ПЫЛИНКИ ===
-        // 🔧 УВЕЛИЧЕНО ДО 100 ПЫЛИНОК
         const dustParticles = [];
         const dustMat = new THREE.SpriteMaterial({
             map: dustTex,
@@ -486,10 +588,8 @@
             blending: THREE.AdditiveBlending
         });
 
-        // 🔧 100 пылинок вместо 30
         for (let i = 0; i < 100; i++) {
             const dust = new THREE.Sprite(dustMat.clone());
-            // 🔧 Увеличен размер в 2 раза (было 0.025, стало 0.05)
             dust.scale.set(0.05, 0.05, 1);
             dust.position.set(
                 (Math.random() - 0.5) * 16,
@@ -640,7 +740,6 @@
 
             sparkleMat.opacity = 0.7 + Math.sin(time * 1.67) * 0.2;
 
-            // 🔧 Анимация 100 пылинок
             dustParticles.forEach((dust, i) => {
                 dust.position.add(dust.userData.velocity);
                 if (Math.abs(dust.position.x) > 11) dust.userData.velocity.x *= -1;
